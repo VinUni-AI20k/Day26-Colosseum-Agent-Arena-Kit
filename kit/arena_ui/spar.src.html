@@ -481,27 +481,25 @@ function drawSpritePanel(rect, sheet, side, t) {
 }
 
 function drawReveal(state, t) {
-  const r = fx.reveal;
-  if (!r) return;
-  const elapsed = t - r.startedAt;
-  if (elapsed < 0 || elapsed > TIMINGS.revealMs) return;
-  const alpha = elapsed > TIMINGS.revealMs - 500 ? Math.max(0, (TIMINGS.revealMs - elapsed) / 500) : 1;
+  const reveal = fx.reveal;
+  if (!reveal) return;
+  // Keep the reveal as a caption, never a blocking full-canvas modal.
+  const revealMs = Math.min(TIMINGS.revealMs, 1200);
+  const elapsed = t - reveal.startedAt;
+  if (elapsed < 0 || elapsed > revealMs) return;
+  const fadeMs = 250;
+  const alpha = elapsed > revealMs - fadeMs ? Math.max(0, (revealMs - elapsed) / fadeMs) : 1;
+  const x = 300, y = 438, w = 680, h = 48;
   ctx.save();
   ctx.globalAlpha = alpha;
-  drawFlatPanel(0, 0, LOGICAL_W, LOGICAL_H, 'rgba(10,14,22,0.92)', null);
-  if (SPRITES && SPRITES.cardback) {
-    const scale = 8;
-    const w = SPRITES.cardback.width * scale;
-    const h = SPRITES.cardback.height * scale;
-    drawSprite(ctx, SPRITES.cardback, LOGICAL_W / 2 - w / 2, LOGICAL_H / 2 - h / 2 - 40, scale);
-  }
-  const title = `ROUND ${state.round || 1} — ${(r.attacker || 'ATTACKER').toUpperCase()} ATTACKS`;
-  const tw = measurePixelText(ctx, title, 2);
-  drawPixelText(ctx, LOGICAL_W / 2 - tw / 2, LOGICAL_H / 2 + 100, title, COLORS.text, 2);
-  if (r.ask && r.ask.type) {
-    const sub = `card ${r.cardId || '?'} — ask: ${r.ask.type}`;
+  drawFlatPanel(x, y, w, h, 'rgba(10,14,22,0.92)', COLORS.panelBorder);
+  const title = `ROUND ${state.round || 1} — ${(reveal.attacker || 'ATTACKER').toUpperCase()} ATTACKS`;
+  const tw = measurePixelText(ctx, title, 1);
+  drawPixelText(ctx, LOGICAL_W / 2 - tw / 2, y + 8, title, COLORS.text, 1);
+  if (reveal.ask && reveal.ask.type) {
+    const sub = `card ${reveal.cardId || '?'} — ask: ${reveal.ask.type}`;
     const sw = measurePixelText(ctx, sub, 1);
-    drawPixelText(ctx, LOGICAL_W / 2 - sw / 2, LOGICAL_H / 2 + 122, sub, COLORS.textDim, 1);
+    drawPixelText(ctx, LOGICAL_W / 2 - sw / 2, y + 27, sub, COLORS.textDim, 1);
   }
   ctx.restore();
 }
@@ -519,18 +517,54 @@ function drawIntegrityBanner(t) {
 }
 
 function drawKoOverlay(state, t) {
+  const hpYou = state && state.sides && state.sides[YOU] ? state.sides[YOU].hp : 100;
+  const hpOpp = state && state.sides && state.sides[OPPONENT] ? state.sides[OPPONENT].hp : 100;
+
+  if ((hpYou <= 0 || hpOpp <= 0) && !fx.koAt) {
+    fx.koAt = t;
+  }
+
   if (!fx.koAt) return;
+
+  const userWon = hpYou > hpOpp;
+  const isDraw = hpYou === hpOpp;
+
   ctx.save();
   drawFlatPanel(0, 0, LOGICAL_W, LOGICAL_H, 'rgba(10,14,22,0.88)', null);
-  if (SPRITES && SPRITES.skull) {
-    const scale = 9;
-    const w = SPRITES.skull.width * scale;
-    const h = SPRITES.skull.height * scale;
-    drawSprite(ctx, SPRITES.skull, LOGICAL_W / 2 - w / 2, LOGICAL_H / 2 - h / 2 - 50, scale);
+
+  if (userWon) {
+    // VICTORY SCREEN (YOU WIN)
+    if (SPRITES && SPRITES.agentA && (SPRITES.agentA.idle || SPRITES.agentA.attack)) {
+      const sprite = SPRITES.agentA.idle || SPRITES.agentA.attack;
+      const scale = 8;
+      const w = sprite.width * scale;
+      const h = sprite.height * scale;
+      drawSprite(ctx, sprite, LOGICAL_W / 2 - w / 2, LOGICAL_H / 2 - h / 2 - 50, scale);
+    }
+    const vicText = 'VICTORY';
+    const tw = measurePixelText(ctx, vicText, 4);
+    drawPixelText(ctx, LOGICAL_W / 2 - tw / 2, LOGICAL_H / 2 + 50, vicText, COLORS.sideA, 4);
+
+    const subText = 'YOU WIN!';
+    const stw = measurePixelText(ctx, subText, 2);
+    drawPixelText(ctx, LOGICAL_W / 2 - stw / 2, LOGICAL_H / 2 + 95, subText, COLORS.text, 2);
+  } else {
+    // K.O. SCREEN (DEFEAT / DRAW)
+    if (SPRITES && SPRITES.skull) {
+      const scale = 9;
+      const w = SPRITES.skull.width * scale;
+      const h = SPRITES.skull.height * scale;
+      drawSprite(ctx, SPRITES.skull, LOGICAL_W / 2 - w / 2, LOGICAL_H / 2 - h / 2 - 50, scale);
+    }
+    const koText = 'K.O.';
+    const tw = measurePixelText(ctx, koText, 4);
+    drawPixelText(ctx, LOGICAL_W / 2 - tw / 2, LOGICAL_H / 2 + 50, koText, COLORS.damageRed, 4);
+
+    const subText = isDraw ? 'DRAW' : 'DEFEAT';
+    const stw = measurePixelText(ctx, subText, 2);
+    drawPixelText(ctx, LOGICAL_W / 2 - stw / 2, LOGICAL_H / 2 + 95, subText, COLORS.textDim, 2);
   }
-  const koText = 'K.O.';
-  const tw = measurePixelText(ctx, koText, 4);
-  drawPixelText(ctx, LOGICAL_W / 2 - tw / 2, LOGICAL_H / 2 + 60, koText, COLORS.damageRed, 4);
+
   ctx.restore();
 }
 
