@@ -5,10 +5,10 @@ classes (CONTRACTS.md section 6.1) each one can save you from.
 
     gateway.py      the control plane: Gateway.decide(cmd) -> Decision
                      (CONTRACTS.md section 4, exactly)
-    strategy.py      discovery / delegation / caching / replica / budget
-                     policy — building blocks, not wired in by default
-    guardrails.py    grounding (real), injection/redaction/arithmetic
-                     (named stubs), abstention (real, naive)
+    strategy.py      discovery / delegation / caching / replica / adaptive
+                     budget policy consumed by Gateway
+    guardrails.py    grounding, injection/redaction/arithmetic, aggregate
+                     answer validation and abstention
     telemetry.py     ctx.emit wrappers — your own side only, never scored
     prompt.md        the system prompt LAYERED ON TOP of kit.loop.prompt's
                      harness prompt (not a replacement for it)
@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from agent.gateway import Command, Decision, Gateway, GatewayContext
 from agent.guardrails import (
+    AnswerSafetyResult,
     ArithmeticCheckResult,
     GroundingResult,
     InjectionScanResult,
@@ -38,9 +39,11 @@ from agent.guardrails import (
     redact,
     scan_for_injected_instructions,
     verify_arithmetic,
+    validate_answer,
 )
 from agent.strategy import (
     BudgetPacer,
+    ROUND_ALLOWANCES,
     ReplicaChoice,
     ResultCache,
     cheap_mask,
@@ -68,9 +71,12 @@ __all__ = [
     "redact",
     "ArithmeticCheckResult",
     "verify_arithmetic",
+    "AnswerSafetyResult",
+    "validate_answer",
     "abstention_policy",
     # strategy.py
     "BudgetPacer",
+    "ROUND_ALLOWANCES",
     "ReplicaChoice",
     "ResultCache",
     "cheap_mask",
@@ -93,6 +99,7 @@ if __name__ == "__main__":
     assert {"Command", "Decision", "Gateway", "GatewayContext"} <= set(__all__)
     assert {"BudgetPacer", "ResultCache", "should_delegate"} <= set(__all__)
     assert {"GroundingResult", "check_grounding", "abstention_policy"} <= set(__all__)
+    assert {"AnswerSafetyResult", "validate_answer", "ROUND_ALLOWANCES"} <= set(__all__)
     assert {"Telemetry", "RecordingGatewayContext"} <= set(__all__)
     print(f"\n  {len(__all__)} public names, all import cleanly from `agent`.")
 
@@ -109,6 +116,7 @@ if __name__ == "__main__":
     )
     decision = gw.decide(cmd)
     print(f"  gw.decide(cmd) -> verdict={decision.verdict!r}")
-    assert decision.verdict == "forward"
+    assert decision.verdict == "rewrite"
+    assert decision.call is not None and decision.call.headers["mcp-replica"] == "w"
 
     print("\nagent/__init__.py import-and-export check passed.")
