@@ -181,7 +181,11 @@ def _probe_subprocess_cat(path: Path) -> dict:
 
 def _probe_ctypes_open(path: Path) -> dict:
     try:
-        libc = ctypes.CDLL("libc.dylib")
+        # Load the process-global symbol table instead of hard-coding
+        # macOS's `libc.dylib`. CPython already links the C runtime, so this
+        # exposes the same raw `open` symbol on both Darwin and Linux while
+        # preserving the escape vector this probe is meant to exercise.
+        libc = ctypes.CDLL(None)
         libc.open.restype = ctypes.c_int
         libc.open.argtypes = [ctypes.c_char_p, ctypes.c_int]
         fd = libc.open(str(path).encode("utf-8"), 0)
