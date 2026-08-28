@@ -636,9 +636,10 @@ function render(nowMs) {
 
   ctx.restore();
 
-  drawReveal(matchState, nowMs);
-  drawIntegrityBanner(nowMs);
-  drawKoOverlay(matchState, nowMs);
+  // Overlays disabled for clean replay view
+  // drawReveal(matchState, nowMs);
+  // drawIntegrityBanner(nowMs);
+  // drawKoOverlay(matchState, nowMs);
 
   if (statusText) {
     drawPixelText(ctx, LOGICAL_W - measurePixelText(ctx, statusText, 1) - 4, LOGICAL_H - 9, statusText, COLORS.textDim, 1);

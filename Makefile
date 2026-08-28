@@ -37,7 +37,7 @@ spar:
 
 ui:
 	$(BIN)/python -m kit.arena_ui.build_ui
-	$(BIN)/python -m kit.arena_ui.serve --open
+	$(BIN)/python -m kit.arena_ui.serve --no-open
 
 # Always validate against the REAL exported world. Without --world the validator falls
 # back to kit/world/fixture.py's ~40-page synthetic world, where every real anchor fails
