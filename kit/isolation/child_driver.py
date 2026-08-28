@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import ctypes.util
 import importlib
 import io
 import json
@@ -179,9 +180,27 @@ def _probe_subprocess_cat(path: Path) -> dict:
     return {"denied": False, "detail": f"rc=0 stdout={cp.stdout!r}", "kind": None}
 
 
+def _load_libc() -> ctypes.CDLL:
+    """Resolve the C runtime portably (Darwin ``libc.dylib``, glibc ``libc.so.6``, Windows ``msvcrt``)."""
+    names: list[str] = []
+    found = ctypes.util.find_library("c")
+    if found:
+        names.append(found)
+    for candidate in ("libc.so.6", "libc.dylib", "msvcrt"):
+        if candidate not in names:
+            names.append(candidate)
+    last_exc: OSError | None = None
+    for name in names:
+        try:
+            return ctypes.CDLL(name)
+        except OSError as exc:
+            last_exc = exc
+    raise OSError("could not load the C runtime library") from last_exc
+
+
 def _probe_ctypes_open(path: Path) -> dict:
     try:
-        libc = ctypes.CDLL("libc.dylib")
+        libc = _load_libc()
         libc.open.restype = ctypes.c_int
         libc.open.argtypes = [ctypes.c_char_p, ctypes.c_int]
         fd = libc.open(str(path).encode("utf-8"), 0)

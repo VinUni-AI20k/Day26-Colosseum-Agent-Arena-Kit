@@ -8,12 +8,13 @@ that is *expected* to fail, no unseeded randomness, no wall-clock.
 **The one test that matters most is `test_probe_sandbox_blocks_every_vector`**:
 it spawns a REAL hostile child under a REAL `sandbox-exec` profile and
 asserts every escape vector CONTRACTS.md 12 names is actually blocked by
-the kernel, on whatever machine runs this suite — never a mocked or
-cached result. If `sandbox-exec` is unavailable, that test FAILS LOUDLY
-(`pytest.fail`, not `pytest.skip`) rather than silently passing a weaker
-guarantee: a skip can look like "nothing to see here" in a CI summary, and
-CONTRACTS.md 12.2.4 is explicit that the honest response to a missing
-sandbox-exec is "no anti-cheat claim," never quietly downgrading the test.
+the kernel, on whatever Darwin machine runs this suite — never a mocked or
+cached result. On macOS, if `sandbox-exec` is unavailable that test FAILS
+LOUDLY (`pytest.fail`, not `pytest.skip`): a skip can look like "nothing to
+see here" in a CI summary, and CONTRACTS.md 12.2.4 is explicit that the
+honest response to a missing sandbox-exec is "no anti-cheat claim," never
+quietly downgrading the test. On non-Darwin hosts there is no Seatbelt
+binary to measure, so the sandbox-exec tests skip rather than fail.
 """
 
 from __future__ import annotations
@@ -386,6 +387,11 @@ def test_classify_run_timeout_kind() -> None:
 
 
 def _require_sandbox_exec_or_fail_loudly() -> str:
+    if sys.platform != "darwin":
+        pytest.skip(
+            "sandbox-exec is macOS Seatbelt; this host is not Darwin so the kernel "
+            "isolation boundary cannot be measured here (skip, not fail)."
+        )
     exe = sandbox.sandbox_exec_path()
     if exe is None:
         pytest.fail(
