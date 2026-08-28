@@ -53,6 +53,28 @@ START_HP = 100
 CREDITS = 100
 
 
+def _select_role_components(role, you, bot):
+    """Keep only the requested student component; use the bot as baseline.
+
+    Side tuples have the `_load_side()` shape `(Gateway, prosecute, deck,
+    lineup)`.  A focused role must not accidentally exercise either of the
+    other two student submissions, otherwise `--as defender|attacker|prosecutor`
+    is indistinguishable from `--as all` and cannot diagnose that role.
+    """
+    if role not in ROLES:
+        raise ValueError(f"unknown role {role!r}; expected one of {ROLES}")
+    if role == "all":
+        return you
+
+    you_gw, you_pr, you_deck, you_lineup = you
+    bot_gw, bot_pr, bot_deck, bot_lineup = bot
+    if role == "defender":
+        return you_gw, bot_pr, bot_deck, bot_lineup
+    if role == "attacker":
+        return bot_gw, bot_pr, you_deck, you_lineup
+    return bot_gw, you_pr, bot_deck, bot_lineup  # prosecutor
+
+
 def round_scale(r: int) -> float:
     return 1.0 if r <= 3 else (1.25 if r <= 7 else 1.5)
 
@@ -332,8 +354,12 @@ def main(argv=None) -> int:
 
     rng = random.Random(a.seed)
     world = _load_world()
-    you_gw, you_pr, you_deck, you_lineup = _load_side("you")
-    bot_gw, bot_pr, bot_deck, bot_lineup = _load_side(a.bot)
+    you_side = _load_side("you")
+    bot_side = _load_side(a.bot)
+    you_gw, you_pr, you_deck, you_lineup = _select_role_components(
+        a.role, you_side, bot_side
+    )
+    bot_gw, bot_pr, bot_deck, bot_lineup = bot_side
 
     you_cards = {c["id"]: c for c in you_deck["cards"]}
     bot_cards = {c["id"]: c for c in bot_deck["cards"]}
