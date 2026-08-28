@@ -531,28 +531,30 @@ def test_prosecute_stays_well_under_the_five_second_deadline_even_on_a_large_tra
     assert result["v"] == 1
 
 
-def test_starter_end_to_end_against_the_full_fixture_set(labelled_fixtures):
+def test_prosecutor_end_to_end_against_the_full_fixture_set(labelled_fixtures):
     report = score_prosecutor(prosecute, labelled_fixtures)
 
     assert report["n_fixtures"] == len(labelled_fixtures)
     assert report["n_errors"] == 0
     assert report["n_timeouts"] == 0
-    assert report["false"] == 0, "the starter's one detector must never file a false claim on this fixture set"
-    assert report["rejected"] == 0, "the starter must never emit a schema-invalid or over-quota claim on its own"
+    assert report["false"] == 0, "the prosecutor must never file a false claim on this fixture set"
+    assert report["rejected"] == 0, "the prosecutor must never emit a schema-invalid or over-quota claim on its own"
 
     # precision perfect: it never guesses wrong when it does file
     assert report["precision"] == 1.0
-    # recall low: it implements exactly 1 of 17 classes
-    assert 0.0 < report["recall"] < 0.15
+    # The shipped baseline implements enforcement_failure. Student solutions
+    # are expected to add detectors, so recall may legitimately rise all the
+    # way to 1.0; pin the floor, not the starter's intentionally low ceiling.
+    assert report["recall"] >= 1 / len(CLASSES)
     assert report["false_claim_rate"] == 0.0
 
     assert report["per_class"]["enforcement_failure"]["recall"] == 1.0
     assert report["per_class"]["enforcement_failure"]["present"] == 2
     assert report["per_class"]["enforcement_failure"]["verified"] == 2
-    # every other class: present in the fixtures, but never claimed (stub hooks)
+    # Every class remains represented, whether its hook is still a no-op or a
+    # student has implemented it.
     for cls in CLASSES - {"enforcement_failure"}:
         assert report["per_class"][cls]["present"] >= 2
-        assert report["per_class"][cls]["claimed"] == 0
 
 
 def test_starter_files_nothing_on_clean_fixtures(labelled_fixtures):
