@@ -204,6 +204,28 @@ def test_anchor_is_frozen() -> None:
 # 5. path_id() stability and non-collision on real corpus files
 # ---------------------------------------------------------------------------
 
+_CORPUS_MARKER = Path("day26/day26-mcp-a2a-infrastructure-agentic-routing.tex")
+
+
+def _find_real_corpus_root(start: Path) -> Path | None:
+    """Find the optional course corpus without assuming clone depth."""
+    start = start.resolve()
+    for candidate in (start, *start.parents):
+        if (candidate / _CORPUS_MARKER).is_file():
+            return candidate
+    return None
+
+
+def test_find_real_corpus_root_is_independent_of_clone_depth(tmp_path: Path) -> None:
+    corpus_root = tmp_path / "workspace"
+    marker = corpus_root / _CORPUS_MARKER
+    marker.parent.mkdir(parents=True)
+    marker.touch()
+    nested_repo = corpus_root / "arbitrary" / "clone" / "depth" / "kit"
+    nested_repo.mkdir(parents=True)
+
+    assert _find_real_corpus_root(nested_repo) == corpus_root.resolve()
+
 
 def test_path_id_is_8_lowercase_hex_and_deterministic() -> None:
     p = "day26/day26-mcp-a2a-infrastructure-agentic-routing.tex"
@@ -255,12 +277,10 @@ def test_path_id_decoy_and_real_day10_content_differ() -> None:
 
 
 def test_path_id_over_the_real_corpus_has_no_collisions() -> None:
-    # _REPO_ROOT is the Kit repo root (.../day26/lab/Day26-Colosseum-Agent-Arena-Kit);
-    # the ai20k workspace root is three levels up: Kit -> lab -> day26 -> ai20k.
-    ai20k_root = _REPO_ROOT.parents[2]
-    deck_paths = sorted(ai20k_root.glob("day*/day*.tex"))
-    if not deck_paths:
+    ai20k_root = _find_real_corpus_root(_REPO_ROOT)
+    if ai20k_root is None:
         pytest.skip("real corpus not present in this environment")
+    deck_paths = sorted(ai20k_root.glob("day*/day*.tex"))
     rels = [str(p.relative_to(ai20k_root)) for p in deck_paths]
     ids = [path_id(r) for r in rels]
     dupes = {pid for pid in ids if ids.count(pid) > 1}
@@ -295,10 +315,10 @@ def test_compute_etag_changes_with_body() -> None:
 
 
 def test_compute_etag_over_real_corpus_bodies_reproduces() -> None:
-    ai20k_root = _REPO_ROOT.parents[2]
-    deck_path = ai20k_root / "day26" / "day26-mcp-a2a-infrastructure-agentic-routing.tex"
-    if not deck_path.is_file():
+    ai20k_root = _find_real_corpus_root(_REPO_ROOT)
+    if ai20k_root is None:
         pytest.skip("real corpus not present in this environment")
+    deck_path = ai20k_root / "day26" / "day26-mcp-a2a-infrastructure-agentic-routing.tex"
     text = deck_path.read_text(encoding="utf-8")
     lines = text.splitlines()
     for start in (100, 500, 900):
