@@ -4,6 +4,6 @@ __pycache__/
 .pytest_cache/
 submissions/*.bundle
 runs/
-kit/world/*/
+# kit/world/*/
 !kit/world/*.py
 *.local.json
