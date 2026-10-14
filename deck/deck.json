@@ -35,7 +35,7 @@
    "kind": "attack",
    "ask": {
     "type": "which_day_covers",
-    "concept": "Concept:stategraph/w/055",
+    "concept": "Concept:rlhf/w/042",
     "require": [
      "course_day",
      "track",
@@ -50,13 +50,13 @@
     "target": "mcp:slides",
     "op": "swap_replica",
     "value": {
-     "path_id": "e0614beb",
+     "path_id": "0e11ae43",
      "scope": "header"
     }
    },
    "trigger": {
     "on": "call_index",
-    "gte": 2
+    "gte": 1
    }
   },
   {
@@ -64,7 +64,7 @@
    "kind": "attack",
    "ask": {
     "type": "current_version_of",
-    "path_id": "053195a5",
+    "path_id": "7a8d8046",
     "require": [
      "fresher",
      "w_anchor",
@@ -80,7 +80,7 @@
     "target": "mcp:slides",
     "op": "swap_replica",
     "value": {
-     "path_id": "053195a5",
+     "path_id": "7a8d8046",
      "scope": "content"
     }
    },
