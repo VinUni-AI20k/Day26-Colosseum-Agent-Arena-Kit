@@ -35,5 +35,10 @@ Step "6. Full duel report vs $Bot (look at MISSED, not HP)"
 if (-not $NoUI) {
     Step "7. Battle replay (Ctrl+C to stop)"
     & $py -m kit.arena_ui.build_ui | Out-Null
-    & $py -m kit.arena_ui.serve --run "spar-$Bot-$Seed"
+    # Two servers on one port (Windows allows it) make the page hang on "Loading...".
+    # Use 8765 if it is free, otherwise the next free port.
+    $port = 8765
+    while (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) { $port++ }
+    Write-Host "Open: http://localhost:$port/?run=spar-$Bot-$Seed   (Ctrl+C here to stop)" -ForegroundColor Green
+    & $py -m kit.arena_ui.serve --run "spar-$Bot-$Seed" --port $port
 }

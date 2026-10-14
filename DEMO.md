@@ -29,6 +29,8 @@ powershell -ExecutionPolicy Bypass -File .\demo.ps1 -Bot operator -Seed 2
 | 6 | Báo cáo trận với adversary | đọc danh sách **MISSED**, không chỉ nhìn HP |
 | 7 | Replay pixel tại `http://localhost:8765/?run=spar-adversary-1` | xem 5 ô QUESTION → ACTION → ANSWER → EVAL → REFEREE theo từng hiệp |
 
+Nếu trang replay đứng ở "Loading…" thì gần như chắc chắn có **hai server cùng chiếm một cổng**: Windows cho phép điều đó, còn server của kit chỉ phục vụ từng kết nối một. Tắt cửa sổ demo cũ (Ctrl+C) rồi chạy lại. `demo.ps1` đã tự chọn cổng trống và in đúng địa chỉ cần mở; không cần XAMPP hay web server nào khác.
+
 Màn hình replay: hàng **YOU DEFEND** là gateway của đội. Ô 2 (ACTION) cho thấy lệnh nào bị `DENIED`; ô 5 (REFEREE) cho thấy bên nào mất máu và vì sao.
 
 ## 2. Lệnh rời để tự đánh giá
