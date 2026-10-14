@@ -6,4 +6,4 @@
 
 - Đội 1 thành viên; một người làm cả ba vai ATTACK (`deck/`), DEFEND (`agent/`), PROSECUTE (`eval/`).
 - Bundle: `undefeated.bundle`, tạo bằng `make submit TEAM=undefeated` (`python -m kit.submit --team undefeated`), có hash của 39 file `kit/` đúng như lúc nhận.
-- Repo: https://github.com/quangvinh12a1/K4-Track02-Day26-DoQuangVinh-2A202602989-Colosseum
+- Repo: https://github.com/quangvinh12a1/K4-Day26-Undefeated-Colosseum-Agent-Arena-Kit
