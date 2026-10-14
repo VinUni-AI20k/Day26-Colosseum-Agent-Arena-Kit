@@ -13,33 +13,11 @@ wrapper around `kit.loop.Agent`, or a check you run in your own tests
 before trusting a transcript). `agent/README.md`'s table names exactly
 which of the 17 rubric classes each function below stands between you and.
 
-ONE FUNCTION HERE IS REAL. THE OTHER FOUR ARE NOT, AND SAY SO LOUDLY.
-----------------------------------------------------------------------------
-`check_grounding` actually checks something: every anchor your answer
-cites must (a) parse as valid `Anchor` syntax and (b) be a member of the
-anchors your exchange actually retrieved. That is real, working, and
-tested below.
-
-`scan_for_injected_instructions`, `redact`, `verify_arithmetic` are NAMED
-STUBS — real function signatures, real return types, and a body that
-always returns the SAFEST-LOOKING, MOST PERMISSIVE answer regardless of
-input. Each one's own `__main__` demo below deliberately runs an obviously
-bad example through it and shows the stub MISSING it — not because that is
-a fun trick, but because "a defence that looks like it works but doesn't
-actually check anything" is the whole thesis of Day 26 (CONTRACTS.md
-section 4's entire trusted-envelope design exists because the same problem
-shows up one layer down, at the gateway). A stub that quietly returns
-"looks fine" on everything is a more honest starting point than one that
-raises `NotImplementedError` and crashes your first spar — but it is not,
-in any sense, a safety net. Treat every `True`/`False` these three ever
-return as "the starter has no opinion", not as "the starter checked and
-it's fine".
-
-`abstention_policy` is the one exception in "the rest are stubs": it is a
-real, working, ONE-LINE policy — abstain iff `check_grounding` failed —
-built directly on the one guardrail this file can actually vouch for. It
-is naive on purpose (CONTRACTS.md section 7's `require`d fields, conflicting
-sources, and your own confidence all go unweighed) but it is not fake.
+Grounding checks anchor syntax and retrieval membership. Injection scanning
+and redaction use explicit patterns; they cannot detect every semantic attack
+or identify unmarked private data. Arithmetic verifies explicit binary equations
+and rejects fractional discrete counts. Without an equation it reports that
+arithmetic was not checked; the presence of numbers is not proof of correctness.
 
 Stdlib only. No network, no randomness, no wall-clock reads.
 """
@@ -47,6 +25,7 @@ Stdlib only. No network, no randomness, no wall-clock reads.
 from __future__ import annotations
 
 import re
+from decimal import Decimal, InvalidOperation
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
@@ -227,31 +206,39 @@ class ArithmeticCheckResult:
     detail: str
 
 
-_NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
+_EQUATION_RE = re.compile(
+    r"(?<![\w.])(-?\d+(?:\.\d+)?)\s*([+*/×÷−-])\s*"
+    r"(-?\d+(?:\.\d+)?)\s*=\s*(-?\d+(?:\.\d+)?)(?![\w.])"
+)
 
 
 def verify_arithmetic(text: str) -> ArithmeticCheckResult:
-    """Check numbers and unsupported decimal precision on discrete items."""
+    """Verify explicit binary equations; abstain on uncheckable numeric prose."""
     if not isinstance(text, str) or not text.strip():
         return ArithmeticCheckResult(checked=False, ok=None, detail="empty text")
-
-    discrete_precision = re.search(r"\b\d+\.\d{2,}\s+(?:golden-set|cases|frames|days|questions|modules|tasks)\b", text, re.IGNORECASE)
-    if discrete_precision:
-        return ArithmeticCheckResult(
-            checked=True,
-            ok=False,
-            detail=f"unsupported decimal precision on discrete count: {discrete_precision.group(0)}",
-        )
-
-    numbers = _NUMBER_RE.findall(text)
-    if not numbers:
-        return ArithmeticCheckResult(checked=True, ok=True, detail="no numbers found")
-
-    return ArithmeticCheckResult(
-        checked=True,
-        ok=True,
-        detail=f"verified {len(numbers)} numeric reference(s)",
-    )
+    for match in re.finditer(r"\b(\d+\.\d+)\s+(?:golden-set|cases|frames|days|questions|modules|tasks)\b", text, re.I):
+        if Decimal(match[1]) != Decimal(match[1]).to_integral_value():
+            return ArithmeticCheckResult(True, False, f"fractional discrete count: {match.group(0)}")
+    equations = list(_EQUATION_RE.finditer(text))
+    if not equations:
+        return ArithmeticCheckResult(False, None, "no explicit arithmetic equation to verify")
+    for match in equations:
+        left, right, expected = Decimal(match[1]), Decimal(match[3]), Decimal(match[4])
+        op = match[2]
+        try:
+            if op == "+":
+                actual = left + right
+            elif op in ("-", "−"):
+                actual = left - right
+            elif op in ("*", "×"):
+                actual = left * right
+            else:
+                actual = left / right
+        except (InvalidOperation, ZeroDivisionError):
+            return ArithmeticCheckResult(True, False, f"undefined equation: {match.group(0)}")
+        if actual != expected:
+            return ArithmeticCheckResult(True, False, f"incorrect equation: {match.group(0)}")
+    return ArithmeticCheckResult(True, True, f"verified {len(equations)} explicit equation(s)")
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +308,7 @@ if __name__ == "__main__":
     wrong_math = "The IBM 2024 breach cost cited on day24 is $4.45M, escalating to $9.90M by 2026."
     arith = verify_arithmetic(wrong_math)
     print(f"  verify_arithmetic(<valid numbers>) -> {arith}")
-    assert arith.checked is True and arith.ok is True
+    assert arith.checked is False and arith.ok is None
 
     discrete_err = "Frame:28e68faa/w/025 curates exactly 100.37 golden-set cases for coverage."
     arith2 = verify_arithmetic(discrete_err)
