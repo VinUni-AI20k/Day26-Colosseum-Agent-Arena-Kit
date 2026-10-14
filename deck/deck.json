@@ -320,10 +320,12 @@
    "id": "blk_04",
    "kind": "blank",
    "ask": {
-    "type": "source_of",
-    "claim": "Claim:claim-032daacb/c/001",
+    "type": "contradiction_between",
+    "talk": "Talk:reflexion-hotpotqa",
     "require": [
-     "anchor"
+     "a",
+     "b",
+     "talk"
     ]
    }
   }
