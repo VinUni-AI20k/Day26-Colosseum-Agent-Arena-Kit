@@ -112,3 +112,7 @@ if __name__ == "__main__":
     assert decision.verdict == "forward"
 
     print("\nagent/__init__.py import-and-export check passed.")
+
+# Student-owned model loop: checks ANSWER before submission.
+from agent.runtime import GuardedAgent, prepare_answer
+__all__ += ["GuardedAgent", "prepare_answer"]
