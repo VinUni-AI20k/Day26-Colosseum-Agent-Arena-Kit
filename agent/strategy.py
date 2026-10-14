@@ -210,6 +210,10 @@ class BudgetPacer:
     _spent: int = field(default=0, init=False)
     _spent_by_round: dict[int, int] = field(default_factory=dict, init=False)
 
+    def reconcile(self, credits_left: int) -> None:
+        """Trust the live arena balance over estimated authorized costs."""
+        self._spent = self.starting_pool - credits_left
+
     def record_spend(self, round_no: int, cost: int) -> None:
         if cost < 0:
             raise ValueError(f"cost must be non-negative, got {cost}")
