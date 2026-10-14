@@ -5,28 +5,39 @@
 | Đỗ Quang Vinh | 2A202602989 | Cả ba vai: ATTACK (`deck/`), DEFEND (`agent/`), PROSECUTE (`eval/`) |
 
 Đội 1 thành viên — K4 · Track 2 · Day 26 (Colosseum Agent Arena).
-Bundle nộp: `make submit TEAM=undefeated` → `submissions/undefeated.bundle`.
+Thư mục nộp: [`K4-DAY26-undefeated/`](K4-DAY26-undefeated/), gồm `TEAMMATES.md` và `undefeated.bundle`.
 
 ## Đã làm
 
-- **DEFEND — `agent/gateway.py`:** cài bốn job, mỗi lệnh chỉ bị chặn khi có một dấu hiệu cụ thể nhìn thấy được trên `cmd`/`ctx`:
-  - **ROUTE:** chặn route/replica khai trong body; chuyển `slides.search` sang `slides.query`; ghim `Mcp-Replica` vào header.
-  - **ADMIT:** chặn `get_frame` không có lease sống, lệnh chứa chỉ thị bị chèn, server/Agent Card không được xác thực, peer chưa kiểm chứng, payload phình to, và lệnh lặp lại y hệt một lệnh đã lỗi.
-  - **AUTHORIZE:** target phải đúng `ctx.act`; `aud` phải khớp server được gọi; lệnh ghi cần scope `wiki.write:<server>`, có `If-Match`, và `Idempotency-Key` chưa từng dùng.
-  - **BUDGET:** chuyển mask "nút tự phạt" sang mask rẻ; chặn discovery khi credit xuống dưới mức dự trữ.
+- **Bước 4 — gateway (`agent/gateway.py`):** cài bốn job. Mỗi lệnh chỉ bị chặn khi có một dấu hiệu cụ thể nhìn thấy được, và `decide()` không bao giờ ném exception (lỗi nội bộ thì từ chối).
+  - **ROUTE:** chặn route trong body; chuyển `slides.search` sang `slides.query`; ghim `Mcp-Replica` vào header.
+  - **ADMIT:** chặn `get_frame` không có lease sống, chỉ thị bị chèn, server/Agent Card giả, peer chưa kiểm chứng, payload phình to, và lệnh lặp lại y hệt một lệnh đã lỗi.
+  - **AUTHORIZE:** target phải đúng `ctx.act`; `aud` phải khớp server; lệnh ghi cần scope, `If-Match` và `Idempotency-Key` chưa dùng.
+  - **BUDGET:** mask rẻ cho các tool "nút tự phạt"; giữ credit dự trữ cho các vòng sau.
+- **Bước 5 — câu trả lời trung thực:**
+  - `agent/guardrails.py`: `scan_for_injected_instructions` (mẫu tiếng Anh và tiếng Việt), `redact` (đoạn ≥ 40 ký tự chép từ nguồn riêng tư, email, số điện thoại, secret), `verify_arithmetic` (phép tính sai; số liệu không có nguồn hoặc chính xác hơn nguồn), `abstention_policy` (sửa câu trả lời thay vì từ chối; không từ chối lá trống), và `vet_answer` chạy cả chuỗi.
+  - `agent/prompt.md` viết lại cho model: kế hoạch 4 lượt / 20 giây / 100 credit, playbook cho 8 loại câu hỏi, quy tắc dẫn nguồn, chính sách từ chối, cách xử lý hai nguồn mâu thuẫn.
+- **Bước 6 — bộ bài:** mọi lá tấn công đều khai `defense_event: gateway.denied`. Lineup xếp lại theo sát thương đo được: lá yếu ở vòng ×1.0, các lá xuyên được adversary để dành cho vòng ×1.5, và thêm `blk_02` ở vòng 4 làm mồi. Chi tiết trong `deck/README.md` §4.
+- **Bước 7 — công tố (`eval/prosecute.py`):** cài đủ 16 detector. Trên 40 fixture có nhãn đạt precision 1.000, recall 1.000, 0 cáo buộc sai. Trong spar, 30/30 lượt buộc tội không có cáo buộc FALSE nào.
 
-  `decide()` không bao giờ ném exception: lỗi nội bộ thì từ chối (fail closed).
-- **PROSECUTE — `eval/prosecute.py`:** cài đủ 16 hook, mỗi family chọn một cáo buộc theo thứ tự ưu tiên, không cáo buộc trùng sự kiện gốc. Trên 40 fixture có nhãn đạt precision 1.000, recall 1.000, 0 cáo buộc sai.
-- **ATTACK — `deck/deck.json`:** 4 lá atk_03/04/05/09 đổi `defense_event` thành `gateway.denied` (theo khuyến nghị trong `deck/README.md`), để cả trọng tài lẫn spar đều xác nhận được `enforcement_failure`. `validate` đạt 0 FAIL.
+## Kiểm tra (Bước 8)
 
-## Kết quả đấu thử (`spar.py --as all`, seed 1–3)
+| Mục | Kết quả |
+|---|---|
+| `make test` | 4608 passed, 1 failed — `test_isolation::test_run_probe_vectors_unsandboxed_baseline` dùng `ctypes` để thăm dò sandbox macOS (`sandbox-exec`) và không chạy được trên Windows. Test này fail cả trên bản kit gốc chưa sửa, không liên quan code của đội. |
+| `make validate` | 0 FAIL (1 WARN về lethality band — validator chỉ kiểm được gần đúng) |
+| `git status kit/ bots/ fixtures/` | không có thay đổi |
+| Import cấm / G-KEY | `kit.submit` không báo lỗi; G-KEY PASS |
+| Bundle | `submissions/undefeated.bundle` (bản sao nằm trong `K4-DAY26-undefeated/`) |
+
+## Đấu thử (`spar.py --as all`, seed 1–3)
 
 | Bot | Kết quả |
 |---|---|
 | rookie | thắng 100–0 (cả 3 seed) |
 | operator | thắng 100–0 (cả 3 seed) |
-| adversary | thắng 72–0, 48–19, 72–13 |
+| adversary | thắng 72–0, 48–3, 72–0 |
 
-Máu bị mất khi đấu adversary đều đến từ `fabricated_citation`. Lỗi này do harness của spar tự chèn một anchor ngẫu nhiên vào câu trả lời (xác suất 35%), không phải do gateway cho lọt lệnh nào.
+Máu bị mất khi đấu adversary đều đến từ `fabricated_citation`. Lỗi này do harness của spar tự chèn một anchor ngẫu nhiên vào câu trả lời (xác suất 35%), gateway không cho lọt lệnh nào.
 
-*Có dùng AI:* Claude Code (Claude Opus 5.5) hỗ trợ đọc kit, viết detector/gateway và chạy kiểm thử. Tôi đã review và giải thích được mọi thay đổi.
+*Có dùng AI:* Claude Code (Claude Opus 5.5) hỗ trợ đọc kit, viết gateway / guardrails / detector / prompt và chạy kiểm thử. Tôi đã review và giải thích được mọi thay đổi. Không đưa trace của đối thủ cho AI trong giải đấu.
