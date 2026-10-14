@@ -7,11 +7,12 @@ Completed on 2026-10-14:
 - Arithmetic now evaluates a bounded numeric AST with exact fractions,
   parentheses and operator precedence, without eval. Uncheckable prose returns
   unknown; division by zero and wrong equations fail.
-- Redaction handles explicit private/credential labels and exact private source
+- Redaction covers the reported decimal score (3.2/10), email/password cases,
+  and handles explicit private/credential labels and exact private source
   values with case and whitespace normalization. Structured private output is
   rejected before submission.
-- `tests/test_person2_safety.py`: 24 safety cases, all passed. The earlier 16
-  regression cases remain. Full suite: 4659 passed, 7 skipped.
+- `tests/test_person2_safety.py`: 31 safety cases, all passed. The earlier 16
+  regression cases remain. Full suite: 4666 passed, 7 skipped.
 - Shipped 40 labelled prosecutor fixtures retain precision/recall 1.0, with no
   false claims. This describes fixture performance, not unseen-trace accuracy.
 - No-key gate passed; no kit/bots/fixtures files changed.

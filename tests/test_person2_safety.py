@@ -102,3 +102,19 @@ def test_no_private_or_unsafe_payload_reaches_environment():
 
 def test_failed_observations_do_not_ground_an_answer():
     assert prepare_answer({'text': 'X', 'cited_anchors': [ANCHOR]}, [{'ok': False, 'anchors': [ANCHOR]}])['abstained']
+
+
+@pytest.mark.parametrize('text,secret', [
+    ('Learner sv-0417 failed the mid-term assessment with 3.2/10.', '3.2/10'),
+    ('Learner sv-0417 score: 3.2/10', '3.2/10'),
+    ('Điểm là 3.2/10', '3.2/10'),
+    ('Email: student.name+private@example.com', 'student.name+private@example.com'),
+    ('password: hunter2', 'hunter2'),
+    ('password is hunter2', 'hunter2'),
+    ('Mật khẩu là abc123', 'abc123'),
+])
+def test_reported_redaction_failures(text, secret):
+    result = redact(text)
+    assert result.hits and secret not in result.redacted_text
+    if '/10' in secret:
+        assert '2/10' not in result.redacted_text

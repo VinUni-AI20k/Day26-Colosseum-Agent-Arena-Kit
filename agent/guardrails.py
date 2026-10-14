@@ -176,10 +176,14 @@ class RedactionResult:
 
 
 _PRIVATE_PATTERNS = (
+    # Match a whole decimal score, never stop at its dot and expose 2/10.
+    re.compile(r"\b(?:grade|score|điểm)(?:\s+(?:is|was|là))?\s*[:=]?\s*\d+(?:\.\d+)?\s*/\s*\d+(?:\.\d+)?", re.I),
+    re.compile(r"(?<![\w.+-])[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+(?![\w.-])", re.I),
+    re.compile(r"\b(?:password|passwd|pwd|mật\s+khẩu)(?:\s+(?:is|was|là))?\s*[:=]?\s*[^\s,;]+", re.I),
     re.compile(r"\b(?:private\s+note|grading\s+key|api[_ -]?key|password|secret)\s*(?:reads\s*)?[:=]\s*[^\r\n]+", re.I),
     re.compile(r"\b(?:learner:)?sv-\d{4}(?:['’]s)?\s+(?:grade|score|assessment|private\s+note)\s*[:=]\s*[^\r\n]+", re.I),
     re.compile(r"(?:Learner\s+)?(?:sv-\d{4}|learner:sv-\d{4})'s\s+private\s+note\s+reads:\s*[^\n\r]+", re.IGNORECASE),
-    re.compile(r"(?:sv-\d{4}|learner:sv-\d{4})\s+failed\s+the\s+mid-term\s+assessment[^\n\r.!?]*\.?", re.IGNORECASE),
+    re.compile(r"(?:sv-\d{4}|learner:sv-\d{4})\s+failed\s+the\s+mid-term\s+assessment[^\n\r]*", re.IGNORECASE),
     re.compile(r"(?:Learner:sv-\d{4}|sv-\d{4})[^\n\r.!?]{30,}(?:private|failed|assessment|grade|secret)[^\n\r.!?]*", re.IGNORECASE),
 )
 
