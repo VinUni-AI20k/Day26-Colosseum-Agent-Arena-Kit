@@ -112,24 +112,26 @@ make ui               # mở màn hình pixel · open the pixel battle view
 no world in kit/world/ - ask your instructor for the world artifact
 ```
 
-Corpus (~12 MB) không commit vào repo — tải từ **Releases**:
+Corpus (~12 MB) không commit vào repo — tải từ **Releases của repo gốc (VinUni-AI20k)**:
 
 ```bash
-gh release download world-df8c55dabb35 --pattern '*.zip'
+# Cách 1 (Khuyên dùng - Python một dòng):
+python -c "import urllib.request, zipfile; urllib.request.urlretrieve('https://github.com/VinUni-AI20k/Day26-Colosseum-Agent-Arena-Kit/releases/download/world-df8c55dabb35/colosseum-world-df8c55dabb35.zip', 'world.zip'); zipfile.ZipFile('world.zip').extractall('.'); __import__('os').remove('world.zip')"
+
+# Cách 2 (Qua GitHub CLI từ upstream repo):
+gh release download world-df8c55dabb35 --repo VinUni-AI20k/Day26-Colosseum-Agent-Arena-Kit --pattern '*.zip'
 unzip colosseum-world-df8c55dabb35.zip     # -> kit/world/df8c55dabb35/
 rm colosseum-world-df8c55dabb35.zip
-make doctor                                # -> world df8c55dabb35 - 12375 pages
 ```
 
 Kiểm tra toàn vẹn (khuyến khích):
 
 ```bash
-gh release download world-df8c55dabb35 --pattern '*.sha256'
+gh release download world-df8c55dabb35 --repo VinUni-AI20k/Day26-Colosseum-Agent-Arena-Kit --pattern '*.sha256'
 shasum -a 256 -c colosseum-world-df8c55dabb35.zip.sha256
 ```
 
-Dùng `gh` vì repo đang private — `curl` thẳng link release trả **404** cho tới
-khi repo mở public.
+Lưu ý: Tải từ repo gốc `VinUni-AI20k/Day26-Colosseum-Agent-Arena-Kit` vì repo fork sinh viên chưa có Release riêng.
 
 *Download the corpus from the repo's Releases with `gh` (a plain `curl` to the
 release URL returns 404 while this repo is private). Verify the sha256. Unzip
