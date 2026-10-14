@@ -112,7 +112,13 @@ try:
 except ImportError:  # pragma: no cover - collaborator file
     _canonicalise_action = None
 
-from agent.strategy import is_catalog_trap, pick_replica, successor_of
+from agent.strategy import (
+    WASTEFUL_ROUND_CEILING,
+    is_catalog_trap,
+    pick_replica,
+    round_allowance,
+    successor_of,
+)
 from agent.telemetry import RecordingGatewayContext, Telemetry
 
 try:
@@ -178,6 +184,20 @@ def _path_id_of(anchor: Any) -> str | None:
     if not isinstance(anchor, str) or ":" not in anchor:
         return None
     return anchor.split(":", 1)[1].split("/", 1)[0] or None
+
+
+def _rev_of(anchor: Any) -> str | None:
+    """The replica letter an anchor names (`Frame:abc/w/041` -> `w`), if any."""
+    if not isinstance(anchor, str):
+        return None
+    parts = anchor.split(":", 1)[-1].split("#", 1)[0].split("/")
+    return parts[1] if len(parts) >= 3 and parts[1] in ("w", "c") else None
+
+
+# A2A peers whose call is a corroboration, not the answer itself — the first thing
+# to postpone when a round's allowance is spent (citation-checker is also
+# rate-limited to 2 calls per 3 rounds).
+_OPTIONAL_PEERS = frozenset({"citation-checker"})
 
 
 def _injected_instruction(args: Mapping[str, Any]) -> str | None:
@@ -455,6 +475,12 @@ class Gateway:
         # Idempotency keys this gateway has let through — a second write with
         # the same key is refused (exactly-once, write_violation).
         self._idempotency_keys: set[str] = set()
+        # anchor -> latest etag seen from registry.provenance (note_provenance, or
+        # harvested from ctx.history). Lets a write carry a real If-Match instead of
+        # being refused.
+        self._etags: dict[str, str] = {}
+        # round -> credits this gateway has authorised in that round.
+        self._spent_by_round: dict[int, int] = {}
 
     def decide(self, cmd: Command) -> Decision:
         """SYNCHRONOUS. PURE. NO I/O. 250 ms wall (RULES.md section 3).
@@ -514,11 +540,18 @@ class Gateway:
         replica_key = next((k for k in headers if k.lower() == "mcp-replica"), None)
         if replica_key is not None and str(headers[replica_key]).lower() not in ("w", "c"):
             return self.deny(cmd, f"invalid Mcp-Replica header {headers[replica_key]!r}")
-        if replica_key is None and server == "slides" and tool in ("get_frame", "query"):
-            # Pin the replica explicitly so the route is on the header, never implied.
-            choice = pick_replica(path_id=_path_id_of(args.get("anchor")), known_drifting=False)
-            headers["Mcp-Replica"] = choice.replica
-            rewrote.append(f"Mcp-Replica={choice.replica}")
+        anchor_rev = _rev_of(args.get("anchor"))
+        if replica_key is not None and anchor_rev and str(headers[replica_key]).lower() != anchor_rev:
+            # The header must agree with the replica the anchor itself names; a
+            # mismatch is exactly what a swap_replica/replica_flip produces.
+            return self.deny(cmd, f"Mcp-Replica={headers[replica_key]!r} contradicts the anchor's own replica /{anchor_rev}/")
+        if replica_key is None and server == "slides" and tool in ("get_frame", "query", "whatlinkshere"):
+            # Pin the replica on the header. An anchor that names its replica keeps it;
+            # otherwise read the FRESHER replica of a drifting deck (measured table).
+            path_id = _path_id_of(args.get("anchor")) or args.get("path_id")
+            choice = anchor_rev or pick_replica(path_id=path_id, known_drifting=False).replica
+            headers["Mcp-Replica"] = choice
+            rewrote.append(f"Mcp-Replica={choice}")
 
         # ---- JOB 2 — ADMIT ----------------------------------------------
         if (server, tool) == ("slides", "get_frame"):
@@ -562,7 +595,11 @@ class Gateway:
             if needed not in scopes:
                 return self.deny(cmd, f"write {server}.{tool} needs scope {needed!r}; granted {sorted(scopes)}")
             if not _header(headers, "if-match"):
-                return self.deny(cmd, "write without an If-Match etag — read registry.provenance first")
+                etag = self._etag_for(args)
+                if etag is None:
+                    return self.deny(cmd, "write without an If-Match etag — read registry.provenance first")
+                headers["If-Match"] = etag
+                rewrote.append("If-Match from the last registry.provenance read")
             key = _header(headers, "idempotency-key")
             if not key:
                 key = _idempotency_key(server, tool, args)
@@ -570,7 +607,9 @@ class Gateway:
                 rewrote.append("Idempotency-Key added")
             if key in self._idempotency_keys:
                 return self.deny(cmd, f"Idempotency-Key {key!r} already used this duel — refusing a duplicate write")
-            self._idempotency_keys.add(key)
+            pending_key = key
+        else:
+            pending_key = None
 
         # ---- JOB 4 — BUDGET ------------------------------------------------
         if is_catalog_trap(server, tool, fields):
@@ -587,12 +626,67 @@ class Gateway:
             return self.deny(cmd, f"discovery would leave {credits - est} cr, below the {floor} cr reserve for the remaining rounds")
         if credits - est < 0:
             return self.deny(cmd, f"call costs ~{est} cr but only {credits} cr are left this duel")
+        spent = self._spent_by_round.get(rnd, 0)
+        allowance = round_allowance(rnd)
+        if spent + est > allowance:
+            optional = cmd.kind == "discover" or server in _OPTIONAL_PEERS
+            if optional:
+                return self.deny(cmd, f"round {rnd} allowance is {allowance} cr ({spent} spent); this optional call (~{est} cr) waits for a later round")
+            if fields:
+                cheaper = _estimate_cost(server, tool, ())
+                if cheaper < est:  # fall back to the tool's default mask before refusing
+                    fields, est = (), cheaper
+                    rewrote.append(f"mask -> default to stay within the round {rnd} allowance")
+            if spent + est > WASTEFUL_ROUND_CEILING:
+                # A core call over the 11-cr line costs at most a `wasteful` (3);
+                # refusing it risks a `wrong_answer` (8). Let it through, on record.
+                rewrote.append(f"over the {WASTEFUL_ROUND_CEILING}-cr round line ({spent + est} cr) — core call kept")
+        self._spent_by_round[rnd] = spent + est
         self._credits_authorised += est
+        if pending_key is not None:
+            self._idempotency_keys.add(pending_key)
 
         call = self._to_tool_call(cmd, server=server, tool=tool, fields=fields, headers=headers)
         if rewrote:
             return Decision(verdict="rewrite", call=call, note="; ".join(rewrote))
         return Decision(verdict="forward", call=call)
+
+    # -- fed by the loop after a call returns (arena/harness may call these) --------
+    def note_provenance(self, anchor: str, etag: str) -> None:
+        """Remember the etag `registry.provenance` returned for `anchor`; the next
+        write to it gets `If-Match` automatically."""
+        if isinstance(anchor, str) and isinstance(etag, str) and etag:
+            self._etags[anchor] = etag
+
+    def note_card(self, server: str, card: Mapping[str, Any]) -> None:
+        """Accepted for interface compatibility; card verification happens on the
+        command itself (signature / fingerprint headers)."""
+        return None
+
+    def _etag_for(self, args: Mapping[str, Any]) -> str | None:
+        """Latest known etag for a write's target: noted via `note_provenance`, or
+        read from a successful `registry.provenance` result in `ctx.history`."""
+        targets = [str(args[k]) for k in ("anchor", "learner", "learner_id", "act") if isinstance(args.get(k), str)]
+        for entry in reversed(tuple(getattr(self.ctx, "history", ()) or ())):
+            if not isinstance(entry, Mapping):
+                continue
+            prior = entry.get("command") or entry.get("cmd")
+            if prior is not None and not isinstance(prior, Mapping):
+                prior = prior.to_dict() if hasattr(prior, "to_dict") else None
+            outcome = entry.get("outcome") or entry.get("result") or {}
+            if not isinstance(prior, Mapping) or not isinstance(outcome, Mapping):
+                continue
+            if (prior.get("server"), prior.get("tool")) != ("registry", "provenance"):
+                continue
+            anchor = str((prior.get("args") or {}).get("anchor", ""))
+            etag = outcome.get("etag")
+            if isinstance(etag, str) and etag and anchor and anchor not in self._etags:
+                self._etags[anchor] = etag
+        for t in targets:
+            for anchor, etag in self._etags.items():
+                if anchor.casefold() == t.casefold():
+                    return etag
+        return None
 
     def deny(self, cmd: Command, reason: str) -> Decision:
         """The shape of a correct denial — no `call`, a non-empty `reason` — built
@@ -709,6 +803,7 @@ if __name__ == "__main__":
     assert isinstance(ctx, GatewayContext), "RecordingGatewayContext must structurally satisfy GatewayContext"
     gw = Gateway(ctx)
     for cmd in demo_commands:
+        gw._spent_by_round.clear()  # independent examples: each starts with a fresh round budget
         decision = gw.decide(cmd)
         print(f"  decide({cmd.server}.{cmd.tool}) -> verdict={decision.verdict!r} quarantine={decision.quarantine}")
         assert decision.verdict in ("forward", "rewrite"), decision
