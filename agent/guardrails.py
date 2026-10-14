@@ -25,6 +25,8 @@ Stdlib only. No network, no randomness, no wall-clock reads.
 from __future__ import annotations
 
 import re
+import ast
+from fractions import Fraction
 from decimal import Decimal, InvalidOperation
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
@@ -174,20 +176,36 @@ class RedactionResult:
 
 
 _PRIVATE_PATTERNS = (
+    # Match a whole decimal score, never stop at its dot and expose 2/10.
+    re.compile(r"\b(?:grade|score|điểm)(?:\s+(?:is|was|là))?\s*[:=]?\s*\d+(?:\.\d+)?\s*/\s*\d+(?:\.\d+)?", re.I),
+    re.compile(r"(?<![\w.+-])[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+(?![\w.-])", re.I),
+    re.compile(r"\b(?:password|passwd|pwd|mật\s+khẩu)(?:\s+(?:is|was|là))?\s*[:=]?\s*[^\s,;]+", re.I),
+    re.compile(r"\b(?:private\s+note|grading\s+key|api[_ -]?key|password|secret)\s*(?:reads\s*)?[:=]\s*[^\r\n]+", re.I),
+    re.compile(r"\b(?:learner:)?sv-\d{4}(?:['’]s)?\s+(?:grade|score|assessment|private\s+note)\s*[:=]\s*[^\r\n]+", re.I),
     re.compile(r"(?:Learner\s+)?(?:sv-\d{4}|learner:sv-\d{4})'s\s+private\s+note\s+reads:\s*[^\n\r]+", re.IGNORECASE),
-    re.compile(r"(?:sv-\d{4}|learner:sv-\d{4})\s+failed\s+the\s+mid-term\s+assessment[^\n\r.!?]*\.?", re.IGNORECASE),
+    re.compile(r"(?:sv-\d{4}|learner:sv-\d{4})\s+failed\s+the\s+mid-term\s+assessment[^\n\r]*", re.IGNORECASE),
     re.compile(r"(?:Learner:sv-\d{4}|sv-\d{4})[^\n\r.!?]{30,}(?:private|failed|assessment|grade|secret)[^\n\r.!?]*", re.IGNORECASE),
 )
 
 
-def redact(text: str) -> RedactionResult:
+def redact(text: str, private_values: Iterable[str] = ()) -> RedactionResult:
     """Redact private learner data, private notes, and sensitive performance information."""
     if not isinstance(text, str) or not text:
         return RedactionResult(redacted_text=text, hits=())
     hits: list[str] = []
     redacted = text
+    # Exact source values are stronger than guesses from learner IDs. Match
+    # case and whitespace variations without interpolating unescaped regex.
+    for value in private_values:
+        if not isinstance(value, str) or not value.strip():
+            continue
+        pattern = re.compile(r"\s+".join(re.escape(word) for word in value.split()), re.I)
+        def replace_private(match):
+            hits.append(match.group(0))
+            return "[REDACTED: private learner content]"
+        redacted = pattern.sub(replace_private, redacted)
     for pat in _PRIVATE_PATTERNS:
-        for m in pat.finditer(text):
+        for m in pat.finditer(redacted):
             val = m.group(0)
             hits.append(val)
             redacted = redacted.replace(val, "[REDACTED: private learner content]")
@@ -207,15 +225,43 @@ class ArithmeticCheckResult:
 
 
 _EQUATION_RE = re.compile(
-    r"(?<![\w.])(-?\d+(?:\.\d+)?)\s*([+*/×÷−-])\s*"
-    r"(-?\d+(?:\.\d+)?)\s*=\s*(-?\d+(?:\.\d+)?)(?![\w.])"
+    r"(?<![\w.])([()\d.\s+*/×÷−-]+)=\s*([()\d.\s+*/×÷−-]+)"
 )
 
 
+def _calculate(expression: str) -> Fraction:
+    """Bounded numeric AST only: never execute model-supplied Python."""
+    expression = expression.strip().translate(str.maketrans({"×": "*", "÷": "/", "−": "-"}))
+    if len(expression) > 256:
+        raise ValueError("expression too long")
+    tree = ast.parse(expression, mode="eval")
+    if sum(1 for _ in ast.walk(tree)) > 64:
+        raise ValueError("expression too complex")
+    def visit(node):
+        if isinstance(node, ast.Constant) and type(node.value) in (int, float):
+            literal = ast.get_source_segment(expression, node)
+            return Fraction(literal)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+            value = visit(node.operand)
+            return -value if isinstance(node.op, ast.USub) else value
+        if isinstance(node, ast.BinOp):
+            left, right = visit(node.left), visit(node.right)
+            if isinstance(node.op, ast.Add):
+                return left + right
+            if isinstance(node.op, ast.Sub):
+                return left - right
+            if isinstance(node.op, ast.Mult):
+                return left * right
+            if isinstance(node.op, ast.Div):
+                return left / right
+        raise ValueError("unsupported arithmetic")
+    return visit(tree.body)
+
+
 def verify_arithmetic(text: str) -> ArithmeticCheckResult:
-    """Verify explicit binary equations; abstain on uncheckable numeric prose."""
+    """Verify numeric equations including precedence; abstain on numeric prose."""
     if not isinstance(text, str) or not text.strip():
-        return ArithmeticCheckResult(checked=False, ok=None, detail="empty text")
+        return ArithmeticCheckResult(False, None, "empty text")
     for match in re.finditer(r"\b(\d+\.\d+)\s+(?:golden-set|cases|frames|days|questions|modules|tasks)\b", text, re.I):
         if Decimal(match[1]) != Decimal(match[1]).to_integral_value():
             return ArithmeticCheckResult(True, False, f"fractional discrete count: {match.group(0)}")
@@ -223,21 +269,13 @@ def verify_arithmetic(text: str) -> ArithmeticCheckResult:
     if not equations:
         return ArithmeticCheckResult(False, None, "no explicit arithmetic equation to verify")
     for match in equations:
-        left, right, expected = Decimal(match[1]), Decimal(match[3]), Decimal(match[4])
-        op = match[2]
         try:
-            if op == "+":
-                actual = left + right
-            elif op in ("-", "−"):
-                actual = left - right
-            elif op in ("*", "×"):
-                actual = left * right
-            else:
-                actual = left / right
-        except (InvalidOperation, ZeroDivisionError):
-            return ArithmeticCheckResult(True, False, f"undefined equation: {match.group(0)}")
-        if actual != expected:
-            return ArithmeticCheckResult(True, False, f"incorrect equation: {match.group(0)}")
+            if _calculate(match[1]) != _calculate(match[2].rstrip(". ")):
+                return ArithmeticCheckResult(True, False, f"incorrect equation: {match.group(0)}")
+        except ZeroDivisionError:
+            return ArithmeticCheckResult(True, False, "division by zero")
+        except (ValueError, SyntaxError, InvalidOperation):
+            return ArithmeticCheckResult(False, None, "equation cannot be safely verified")
     return ArithmeticCheckResult(True, True, f"verified {len(equations)} explicit equation(s)")
 
 

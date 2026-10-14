@@ -64,3 +64,27 @@ whose return value the arena ever acts on for an MCP/A2A/DISCOVER command
 — `strategy.py` and `guardrails.py` are libraries `gateway.py` (or your own
 answer-assembly code) calls INTO, not parallel enforcement points. Two
 gateways cannot both be authoritative; one `Gateway.decide` is.
+
+## Guarded ANSWER integration
+
+Use the student-owned `agent.GuardedAgent` in place of `kit.loop.Agent`:
+
+```python
+from agent import GuardedAgent
+runner = GuardedAgent(model, env, system_prompt=system_prompt, task=task,
+                      ask=card["ask"])
+result = runner.run()
+```
+
+This intercepts ANSWER before `env.execute`, rebuilds its raw payload, and
+returns the same checked payload in `RunResult.answer`. It verifies retrieved
+citation membership, required fields, explicit arithmetic, and marked private
+source values. Unsafe answers become an explicit abstention; original extra
+fields are removed. No file in the frozen kit is changed.
+
+The instructor integration must construct this runner to use the checks. The
+provided `spar.py` has a canned answer and does not construct a model loop, so
+spar cannot establish that this integration is active in a live tournament.
+Redaction patterns are a fallback; pass source rows marked `private: true` for
+reliable exact-value checks. Semantic privacy and prompt injection coverage
+remain limited. An arithmetic result of `checked=False` means unknown, not true.
