@@ -100,6 +100,8 @@ __all__ = [
     "pick_replica",
     "ResultCache",
     "should_delegate",
+    "fields_for_requirements",
+    "should_abstain",
 ]
 
 ROUNDS_PER_DUEL = 10
@@ -368,6 +370,21 @@ def should_delegate(
     if credits_left < delegate_cost:
         return False
     return True
+
+
+def fields_for_requirements(server: str, tool: str, requirements: tuple[str, ...]) -> tuple[str, ...]:
+    """Return the smallest known mask covering an ask's required fields."""
+    if not _SPECS_AVAILABLE or (server, tool) not in TOOL_SPECS:
+        return tuple(sorted(set(requirements)))
+    spec = TOOL_SPECS[(server, tool)]
+    wanted = set(requirements) & set(spec.all_fields)
+    return cheap_mask(server, tool, tuple(wanted))
+
+
+def should_abstain(*, retrieved_fields: tuple[str, ...], required_fields: tuple[str, ...],
+                   partial: bool = False, conflicted: bool = False) -> bool:
+    """Conservative answer gate: missing, partial, or conflicted evidence abstains."""
+    return partial or conflicted or not set(required_fields).issubset(set(retrieved_fields))
 
 
 if __name__ == "__main__":
