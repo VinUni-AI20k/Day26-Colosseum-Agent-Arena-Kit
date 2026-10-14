@@ -142,19 +142,26 @@ returns `true`); `atk_03`'s `drift`-class card is held to the identical mechanic
 even though it is not literally named `replica_flip` (`validate_deck.py`'s `R5b` rule) — its
 `path_id` (`053195a5`) is also a real drift-set member.
 
-**`deck/lineup.json`** plays all 10 attacks, none of the 4 blanks, in this order:
+**Team undefeated's `deck/lineup.json`** — 9 attacks + 1 blank, ordered by MEASURED damage:
 
 ```
-atk_05 (schema_bomb, cheap opener) → atk_01 (shadow) → atk_04 (poisoned_result) →
-atk_08 (forged_card) → atk_03 (drift) → atk_09 (faithless_peer) → atk_06 (header_spoof) →
-atk_02 (replica_flip) → atk_10 (identity/aud) → atk_07 (identity/act, CONTRACTS' own worked case, saved for last)
+R1-3  (x1.0)  atk_04 (poisoned_result) → atk_03 (drift) → atk_02 (replica_flip)
+R4    (x1.25) blk_02 (blank which_day_covers — bait)
+R5-7  (x1.25) atk_07 (identity/act) → atk_05 (schema_bomb) → atk_01 (shadow)
+R8-10 (x1.5)  atk_10 (identity/aud) → atk_08 (forged_card) → atk_09 (faithless_peer)
 ```
 
-Layers alternate deliberately (MCP, MCP, MCP, A2A, MCP, A2A, gateway, gateway, A2A, A2A) so a
-defender who hardens against whatever landed last round is still exposed the next. **Benching
-all 4 blanks is this starter's own aggressive choice, not a rule** — trading an attack for a
-blank, and where in the order to place it, is exactly the strategic lever RULES.md's blank
-mechanic creates. Pull it if your own deck wants to bait a false positive instead.
+How the order was chosen (`spar._exchange` per card, 5 seeds, verified damage excluding the
+harness's random citation): atk_02/03/04/06 land only on `rookie`; atk_07 also lands on
+`operator` (its confused-deputy flaw) but not `adversary`; atk_01/05/08/09/10 land on all three.
+Cards that only punish careless defenders open the duel at x1.0; the five that get past
+`adversary` are saved for x1.25-x1.5. `atk_06` is benched (rookie-only, and its `record_mastery`
+ask is the easiest for a defender to refuse outright). `blk_02` sits in round 4: a
+`which_day_covers` question right after three attacks on that same ask type is exactly where an
+over-tuned defender refuses or prosecutes a clean card — and that costs them 8.
+
+Every attack card declares `defense_event: "gateway.denied"` (section 1's warning), so both the
+arena referee and `spar.py` can confirm the `enforcement_failure` it creates.
 
 ---
 
