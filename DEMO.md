@@ -24,7 +24,7 @@ powershell -ExecutionPolicy Bypass -File .\demo.ps1 -Bot operator -Seed 2
 | 1 | Sẵn sàng (`make doctor`) | G-KEY PASS · 17 lớp lỗi · validate 0 FAIL |
 | 2 | **DEFEND**: gateway xử lý 9 lệnh mẫu | lệnh sạch được `forward`/`rewrite` (ghim replica, đổi tool deprecated, thu hẹp mask); 6 lệnh tấn công bị `deny`, mỗi lệnh kèm lý do |
 | 3 | **Answer side**: `vet_answer` trên một bản nháp bị đầu độc | anchor bịa bị bỏ, email bị che, chỉ thị bị chèn được báo ra thay vì làm theo |
-| 4 | **PROSECUTE** trên 40 fixture có nhãn | precision 1.000 · recall 1.000 · false 0 |
+| 4 | **PROSECUTE** trên 40 fixture của kit + 13 fixture riêng | cả hai: precision 1.000 · recall 1.000 · false 0 |
 | 5 | Đấu với 3 bot | thắng rookie 100–0, operator 100–0, adversary 72–0 |
 | 6 | Báo cáo trận với adversary | đọc danh sách **MISSED**, không chỉ nhìn HP |
 | 7 | Replay pixel tại `http://localhost:8765/?run=spar-adversary-1` | xem 5 ô QUESTION → ACTION → ANSWER → EVAL → REFEREE theo từng hiệp |
@@ -56,12 +56,12 @@ Lưu ý: ở `--as attacker`/`--as prosecutor`/`--as defender`, các vai còn l�
 - [ ] Sửa `agent/`, `deck/` hay `eval/` thì phải đóng gói lại bundle và chép vào thư mục nộp:
   `.\.venv\Scripts\python.exe -m kit.submit --team undefeated; Copy-Item submissions\undefeated.bundle K4-DAY26-undefeated\`
 
-## 4. Có thể bổ sung (đề xuất, chưa làm)
+## 4. Chức năng bổ sung (đã làm)
 
-| Ý tưởng | Lợi ích | Ghi chú |
-|---|---|---|
-| Ghi nhớ etag từ `registry.provenance` vào gateway (`note_provenance`) rồi tự gắn `If-Match` cho lệnh ghi | ghi hợp lệ thay vì bị từ chối | cần nơi gọi `note_provenance`; bản hiện tại chỉ dựa trên `cmd`/`ctx` |
-| Rút xác suất drift theo `path_id` vào `pick_replica` (`known_drifting`) | chống `stale_read` / `replica_flip` tốt hơn | dùng tập 16 path_id drift đã nhúng trong `eval/prosecute.py` |
-| Ngân sách theo hệ số vòng (dành credit cho vòng ×1.5) | ít bị cạn credit ở cuối trận | giống `_ROUND_ALLOWANCE` của bot adversary |
-| Thêm 1–2 lá tấn công mới nhắm path_id drift khác (vd `0e11ae43`, delta 34) | thay atk_02/03 vốn chưa hạ được adversary | phải chạy lại `validate` và đo lại bằng spar |
-| Bộ fixture riêng cho detector ngữ nghĩa | tránh overfit vào 40 fixture mẫu | 8 lớp ngữ nghĩa ở giải thật do model chấm |
+| # | Chức năng | Ở đâu | Kiểm chứng |
+|---|---|---|---|
+| 1 | Nhớ etag từ `registry.provenance` (`note_provenance` hoặc đọc từ `ctx.history`) và tự gắn `If-Match` cho lệnh ghi | `agent/gateway.py` (`_etag_for`) | lệnh ghi không có header → `rewrite` kèm etag; ghi lại cùng key → `deny` |
+| 2 | Chọn replica theo bảng drift đo được: ở cả 16 deck có drift, bản working đều đầy đủ hơn canonical, nên `pick_replica` mẫu (chọn canonical khi có drift) chọn sai trên toàn bộ corpus; header mâu thuẫn với `/rev/` của anchor bị chặn | `agent/strategy.py` (`DRIFT_TABLE`, `fresher_replica`), `gateway.py` | `Frame:…/c/…` gửi kèm header `w` → `deny` |
+| 3 | Ngân sách theo hệ số vòng: 8 / 10 / 11 credit cho vòng ×1.0 / ×1.25 / ×1.5. Khi vượt, lệnh tùy chọn (discovery, citation-checker) bị hoãn; lệnh cốt lõi được thu hẹp mask nhưng vẫn cho qua (lỗi `wasteful` chỉ phạt 3, lỗi `wrong_answer` phạt 8) | `agent/strategy.py` (`ROUND_ALLOWANCE`), `gateway.py` | `citation-checker` sau khi tiêu hết ngân sách vòng → `deny` |
+| 4 | Hai lá bài mới: atk_02 nhắm `0e11ae43` + `Concept:rlhf/w/042`; atk_03 nhắm `7a8d8046` (drift lớn nhất) | `deck/deck.json`, `deck/README.md` | validate 0 FAIL |
+| 5 | Bộ fixture riêng: 13 trace viết độc lập, có tiếng Việt và 5 bẫy "sạch" | `eval/selfcheck.py` | `python -m eval.selfcheck` → 13/13, 0 sai; kit 40/40 |

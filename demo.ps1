@@ -21,8 +21,8 @@ Step "2. DEFEND — gateway decisions on a hand-made attack"
 Step "3. Answer side — guardrails on a poisoned draft"
 & $py demo_cases.py answer
 
-Step "4. PROSECUTE — score on 40 labelled fixtures"
-& $py -m eval.prosecute | Select-String "filed:|precision:|recall:|false_claim_rate:"
+Step "4. PROSECUTE — kit fixtures (40) + team selfcheck (13)"
+& $py -m eval.selfcheck | Select-String "===|filed"
 
 Step "5. Duels vs the three bots (all roles, seed $Seed)"
 foreach ($b in "rookie", "operator", "adversary") {
