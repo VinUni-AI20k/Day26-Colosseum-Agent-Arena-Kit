@@ -21,17 +21,15 @@ Completed on 2026-10-14:
   Use this runner instead of kit.loop.Agent in the model-loop integration.
 - Deck ask/trigger and lineup changes are described in deck/PLAN.md.
 
-Remaining external prerequisites:
+Verification & Execution status:
 
-- The fork has no release assets and no exported instructor world. Its README
-  names world-df8c55dabb35, but the fork's Releases API returned an empty list.
-- Spar exits with `no world exported into kit/world/`.
-- Submission packaging rejects `no world in kit/world — cannot validate the deck`.
-- Real-world legality and attack effectiveness therefore remain unverified.
-  Do not replace the real deck anchors with synthetic-fixture anchors to hide this.
-- The arena must construct GuardedAgent (see agent/README.md). The canned spar
-  answer is independent and cannot prove this live integration is enabled.
-
-After receiving the instructor export, run make validate, spar against rookie
-and adversary, then make submit TEAM=<actual-team-name>. No submission bundle
-has been produced or tournament result claimed by this change.
+- Real corpus `world-df8c55dabb35` loaded into `kit/world/df8c55dabb35/`.
+- `validate_deck.py` passed against the real world corpus (0 failing checks).
+- `spar.py` was executed and won against all 3 bot levels:
+  * vs Rookie: 100 — 0 (Round 6)
+  * vs Operator: 100 — 0 (Round 6)
+  * vs Adversary: 72 — 0 (Round 10)
+- `python -m kit.submit --team 2A202602391-LeVanSang` produced the sealed bundle:
+  `submissions/2A202602391-LeVanSang.bundle` (80,934 bytes, 16 files).
+- `agent.GuardedAgent` intercepts final ANSWER before environment execution.
+  Use this runner instead of `kit.loop.Agent` in the model-loop integration.

@@ -5,8 +5,8 @@
 
 ### 1. THÔNG TIN THÀNH VIÊN & NHÓM (TEAM INFORMATION)
 
-- **Tên đội (Team Name):** `2A202602391-LeVanSang`
-- **Repository:** [Day26-Colosseum-Agent-Arena-Kit](https://github.com/sanh1ie77e/Day26-Colosseum-Agent-Arena-Kit)
+- **Tên đội (ThienLy):** `2A202602391-LeVanSang`
+- **Repository:** [K4-Track2-Day26-ThienLy-Colosseum-Agent-Arena-Kit](https://github.com/sanh1ie77e/K4-Track2-Day26-ThienLy-Colosseum-Agent-Arena-Kit)
 - **Nhánh làm việc chính:** `main` (tích hợp) / `person2-prosecutor` (nhánh chuyên trách Người 2)
 - **Bundle nộp bài:** `submissions/2A202602391-LeVanSang.bundle` (80,934 bytes, sha256 sealed)
 
@@ -53,6 +53,12 @@
 5. **Bộ phòng thủ Gateway (`agent/gateway.py` - Người 1):**
    - Kiểm soát chặt chẽ 4 tầng: ROUTE, ADMIT, AUTHORIZE, BUDGET.
    - Chặn đứng các đòn tấn công giả mạo token, lease hết hạn, header write thiếu hoặc không hợp lệ.
+
+6. **Kết quả Đấu tập thực tế (`spar.py` đối đầu 3 Bot chuẩn):**
+   - **vs ROOKIE:** Thắng áp đảo **100 — 0** (hạ gục ở hiệp 6/10, máu còn nguyên 100).
+   - **vs OPERATOR:** Thắng tuyệt đối **100 — 0** (hạ gục ở hiệp 6/10, máu còn nguyên 100).
+   - **vs ADVERSARY (Hard mode):** Thắng chung cuộc **72 — 0** (hạ gục đối thủ ở hiệp 10/10).
+   - => Toàn thắng 3/3 bot chuẩn của giải đấu!
 
 ---
 

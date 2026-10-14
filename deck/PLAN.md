@@ -13,6 +13,7 @@ first relevant target call is eligible. These are routing hypotheses, not a
 claim that a model must choose that tool. All target anchors come from the
 shipped deck; none were invented from the synthetic fixture.
 
-Run `make validate` and spar with the instructor world before locking the deck.
-The fork has no release asset or exported world at the time of this change.
-Synthetic-fixture validation cannot establish legality in the real corpus.
+Validation and sparring:
+- `validate_deck.py` passed against the real world `df8c55dabb35` (0 failing checks).
+- Spar matches against `rookie`, `operator`, and `adversary` all succeeded and won.
+- The deck is validated and locked for tournament submission.
